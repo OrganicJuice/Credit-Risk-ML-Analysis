@@ -1,1 +1,1 @@
-All codes are in rmd files and results in the html file. 
+All codes are in rmd files and results are in the html files. 
