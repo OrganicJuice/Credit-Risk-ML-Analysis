@@ -1,0 +1,98 @@
+---
+title: "Classification and its Multiclass Extension"
+author: "Howard"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+The credit default dataset contains information on ten thousand customers. The aim here is to predict which customers will default on their credit card debt. The data is stored in `Default.csv`. It contains 4 variables, `default`, `student`, `balance` and `income`. We would like to build several statistical models to predict the probability of `default` of a person with given personal information. The data description is as follows.
+
++ `default`: A factor with levels No and Yes indicating whether the customer defaulted on their debt
++ `student`: A factor with levels No and Yes indicating whether the customer is a student
++ `balance`: The average balance that the customer has remaining on their credit card after making their monthly payment
++ `income`: Income of customer
+
+
+Data Partition and Exploration
+
+```{r}
+total_data <- read.csv('C:/Users/balle/Downloads/Default.csv', stringsAsFactors=T)
+```
+
+
+
+Among the 10000 customers in the dataset, how many of them default?
+```{r}
+sum(total_data$default == 'Yes')
+```
+
+
+Partition the data in `total_data` into training **(60%)** and test data **(40%)**. Use random seed **`set.seed(7)`**!
+```{r}
+
+set.seed(7)
+total_obs <- nrow(total_data)
+train_index <- sample(1:total_obs, 0.6*total_obs)
+train_data <- total_data[train_index,]
+test_data <- total_data[-train_index,]
+```
+
+
+Logistic Regression and GAM
+
+Fit a logistic regression model of `default` w.r.t. all 3 predictors.
+```{r}
+lm_full <- glm(default~., family='binomial', data=train_data)
+```
+
+
+Perform backward selection of `lm_full` via BIC.
+```{r}
+lm_bwd <- step(lm_full, direction='backward', k=log(nrow(train_data)))
+```
+income is removed
+
+Fit a GAM of `default` w.r.t. all 3 predictors. Use splines with **df=4** for the numerical predictors, which include `balance ` and `income`.
+```{r}
+library(gam)
+gam1 <- gam(default~s(income)+student+s(balance),family='binomial',data=train_data)
+```
+
+
+Model Evaluation (Prediction)
+
+Use `lm_full` and `gam1` to generate probability predictions for `default` on the test data.
+```{r}
+
+lm_full_pred <- predict(lm_full, newdata=test_data, type='response')
+
+gam1_pred <- predict(gam1, newdata = test_data, type = 'response')
+```
+
+
+Use the confusionMatrix in the `R` package `caret` to evaluate the prediction performance of `lm_full` and `gam1`. What are the sensitivity of `lm_full` and `gam1`?
+```{r}
+library(caret)
+lm_full_acc <- confusionMatrix(factor(ifelse(lm_full_pred>0.5, 'Yes', 'No')), test_data$default, positive = 'Yes')
+
+gam1_acc <- confusionMatrix(factor(ifelse(gam1_pred>0.5, 'Yes', 'No')), test_data$default, positive = 'Yes')
+
+lm_full_acc
+gam1_acc
+```
+
+
+
+Note that the sensitivity of `lm_full` and `gam1` are in the range of 30-40%, which means that the models are having a hard time finding the customers that default. This is not surprising considering that most customers do NOT default. One way to improve sensitivity is to use a threshold **lower** than **0.5** to classify the customer. Use a new threshold **0.1**, i.e. think a customer will default if the predicted probability of default > 0.1.
+
+Use **0.1** as the new classification threshold and calculate the sensitivity for `lm_full` and `gam1`. Did the sensitivity go up? What is the price we need to pay for increasing sensitivity?
+```{r}
+
+lm_full_acc <- confusionMatrix(factor(ifelse(lm_full_pred>0.1, 'Yes', 'No')), test_data$default, positive = 'Yes')
+
+gam1_acc <- confusionMatrix(factor(ifelse(gam1_pred>0.1, 'Yes', 'No')), test_data$default, positive = 'Yes')
+lm_full_acc
+gam1_acc
+```
